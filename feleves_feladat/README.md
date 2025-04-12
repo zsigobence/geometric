@@ -1,4 +1,4 @@
-# Féléves Feladat: B-Spline Görbék Interaktív Megjelenítése és Approximációja
+# Féléves Feladat: Dolgozzon ki egy eljárást, amellyel adott B-spline görbéhez alacsonyabb rendű B-spline görbe közelítést lehet adni! Vizsgálja meg a közelítés pontosságát!
 
 ## Feladat Leírása
 
