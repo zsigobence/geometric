@@ -3,11 +3,11 @@
 ## Feladat Leírása
 
 Dolgozzon ki egy eljárást, amellyel adott B-spline görbéhez alacsonyabb rendű B-spline görbe közelítést lehet adni! Vizsgálja meg a közelítés pontosságát!
-A felhasználó szabadon hozhat létre és mozgathat kontrollpontokat, illetve csúszkák segítségével állíthatja be a görbe fokszámát. A feladathoz hozzáadtam a az alacsonyabb rendű görbében lévő kontrollpontok ideális újraszámolását legkisebb négyzetek módszerével.
+A felhasználó szabadon hozhat létre és mozgathat kontrollpontokat, illetve csúszkák segítségével állíthatja be a görbe fokszámát. A feladathoz hozzáadtam az alacsonyabb rendű görbében lévő kontrollpontok ideális újraszámolását legkisebb négyzetek módszerével.
 
 ## Funkcionalitás
 
-- **B-spline görbe kirajzolása**: kontrollpontokon áthaladó görbe vizualizálása
+- **B-spline görbe kirajzolása**: görbe vizualizálása
 - **Kontrollpontok kezelése**:
   - Bal egérgombbal mozgatható
   - Jobb egérgombbal új pont adható hozzá
