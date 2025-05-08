@@ -63,7 +63,7 @@ rms_error = sqrt(mean((P_original - P_approx)^2))
 
 - Bal klikk: pont kiválasztása és mozgatása
 - Jobb klikk: új kontrollpont hozzáadása
-- S billentyű: legkisebb négyzetek approximáció ki-/bekapcsolása
+- G billentyű: legkisebb négyzetek approximáció ki-/bekapcsolása
 - A billentyű: alacsonyabb fokú approximáció ki-/bekapcsolása
 - Csúszka: `k` és `approx_k` interaktív állítása (minimum érték: 2)
 
