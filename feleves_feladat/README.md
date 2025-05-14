@@ -1,3 +1,4 @@
+
 # B-Spline Görbék Interaktív Megjelenítése és Approximációja
 
 ## Feladat Leírása
