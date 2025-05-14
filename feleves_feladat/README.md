@@ -80,7 +80,7 @@ Futtassa a `main.py` fájlt.
 
 - **Python** – Programozási nyelv
 - **Pygame** – Grafikus megjelenítés és interaktivitás
-- **NumPy** – Mátrixműveletekhez és matematikai számításokhoz (különösen a pszeudoinverzhez és a pontok kezeléséhez)
+- **NumPy** – Mátrixműveletekhez és matematikai számításokhoz
 
 ## Telepítés
 A szükséges függőségek telepítéséhez futtasd az alábbi parancsot:
