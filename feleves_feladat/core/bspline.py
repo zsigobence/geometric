@@ -1,123 +1,43 @@
-import numpy as np
-from .matrix_utils import MatrixUtils
 import pygame
+import numpy as np
+from .bspline_calculator import BSplineCalculator
+from .bspline_approximator import BSplineApproximator
 
 class BSplineInterpolation:
     def __init__(self):
         self._points = [{'x': 100 + i * 100, 'y': 300 if i % 2 == 0 else 100} for i in range(8)]
         self.k = 4
         self.approximation_k = 3
+        self.min_k = 2
+        self.max_k = 10
+        self.k = max(self.min_k, min(self.max_k, self.k, len(self._points)))
+        self.approximation_k = max(self.min_k, min(self.max_k, self.approximation_k, len(self._points), self.k))
         self.show_global_approx = False
-        self.selected_point = None
         self.show_lower_order = False
-
-        # Csúszka setup
+        self.selected_point = None
+        self.calculator = BSplineCalculator()
+        self.approximator = BSplineApproximator(self.calculator)
         self.slider_k_rect = pygame.Rect(20, 540, 200, 10)
-        self.slider_k_handle = pygame.Rect(20, 535, 10, 20)
-
+        self.slider_k_handle = pygame.Rect(0, 0, 10, 20)
         self.slider_approx_rect = pygame.Rect(20, 570, 200, 10)
-        self.slider_approx_handle = pygame.Rect(20, 565, 10, 20)
-
+        self.slider_approx_handle = pygame.Rect(0, 0, 10, 20)
         self.dragging_k = False
         self.dragging_approx = False
-
-        # Handle pozíciók beállítása
         self.update_slider_positions()
 
     def update_slider_positions(self):
-        ratio_k = (self.k - 1) / 9
-        self.slider_k_handle.x = self.slider_k_rect.left + int(ratio_k * self.slider_k_rect.width)
-
-        ratio_approx = (self.approximation_k - 1) / 9
-        self.slider_approx_handle.x = self.slider_approx_rect.left + int(ratio_approx * self.slider_approx_rect.width)
-
-    def basis_function(self, i, k, t, knots):
-        if k == 1:
-            return 1.0 if knots[i] <= t < knots[i + 1] else 0.0
-        else:
-            denom1 = knots[i + k - 1] - knots[i]
-            term1 = 0.0 if denom1 == 0 else (t - knots[i]) / denom1 * self.basis_function(i, k - 1, t, knots)
-            denom2 = knots[i + k] - knots[i + 1]
-            term2 = 0.0 if denom2 == 0 else (knots[i + k] - t) / denom2 * self.basis_function(i + 1, k - 1, t, knots)
-            return term1 + term2
-
-    def compute_bspline(self, points, num_points=200):
-        n = len(points)
-        knots = np.linspace(0, 1, n + self.k)
-        t_values = np.linspace(knots[self.k - 1], knots[n], num_points)
-        spline_x, spline_y = [], []
-
-        for t in t_values:
-            x, y = 0.0, 0.0
-            for i in range(n):
-                basis = self.basis_function(i, self.k, t, knots)
-                x += basis * points[i]['x']
-                y += basis * points[i]['y']
-            spline_x.append(x)
-            spline_y.append(y)
-
-        return [{'x': spline_x[i], 'y': spline_y[i]} for i in range(len(spline_x))]
-
-    def compute_lower_order_approximation(self, num_points=200):
-        original_curve = self.compute_bspline(self._points)
-        x_orig = np.array([p['x'] for p in original_curve])
-        y_orig = np.array([p['y'] for p in original_curve])
-
-        n = len(self._points)
-        knots = np.linspace(0, 1, n + self.approximation_k)
-        t_values = np.linspace(knots[self.approximation_k - 1], knots[n], num_points)
-
-        spline_x, spline_y = [], []
-
-        for t in t_values:
-            x, y = 0.0, 0.0
-            for i in range(n):
-                basis = self.basis_function(i, self.approximation_k, t, knots)
-                x += basis * self._points[i]['x']
-                y += basis * self._points[i]['y']
-            spline_x.append(x)
-            spline_y.append(y)
-
-        errors = np.sqrt((x_orig - np.array(spline_x)) ** 2 + (y_orig - np.array(spline_y)) ** 2)
-        max_error = np.max(errors)
-        rms_error = np.sqrt(np.mean(errors ** 2))
-
-        approx_points = [{'x': spline_x[i], 'y': spline_y[i]} for i in range(len(spline_x))]
-        return approx_points, max_error, rms_error
-
-    def least_squares_approximation(self):
-        original_curve = self.compute_bspline(self._points)
-        num_approx_points = len(self._points)
-        knots = np.linspace(0, 1, num_approx_points + self.approximation_k)
-        t_values = np.linspace(knots[self.approximation_k - 1], knots[num_approx_points], len(original_curve))
-
-        B = np.array([
-            [self.basis_function(col, self.approximation_k, t, knots) for col in range(num_approx_points)]
-            for t in t_values
-        ])
-
-        x_target = np.array([p['x'] for p in original_curve])
-        y_target = np.array([p['y'] for p in original_curve])
-
-        pinv = MatrixUtils.pseudo_inverse(B.tolist())
-        if pinv is None:
-            return self._points, None, None
-
-        pinv = np.array(pinv)
-        ctrl_x = pinv @ x_target
-        ctrl_y = pinv @ y_target
-
-        new_ctrl_pts = [{'x': ctrl_x[i], 'y': ctrl_y[i]} for i in range(num_approx_points)]
-        approx_curve = self.compute_bspline(new_ctrl_pts)
-
-        x_approx = np.array([p['x'] for p in approx_curve])
-        y_approx = np.array([p['y'] for p in approx_curve])
-
-        errors = np.sqrt((x_target - x_approx) ** 2 + (y_target - y_approx) ** 2)
-        max_error = np.max(errors)
-        rms_error = np.sqrt(np.mean(errors ** 2))
-
-        return new_ctrl_pts, max_error, rms_error
+        slider_width = self.slider_k_rect.width
+        handle_width = self.slider_k_handle.width
+        usable_width = slider_width - handle_width
+        k_range = self.max_k - self.min_k
+        clamped_k = max(self.min_k, min(self.max_k, self.k))
+        ratio_k = (clamped_k - self.min_k) / k_range if k_range > 0 else 0
+        self.slider_k_handle.left = self.slider_k_rect.left + int(ratio_k * usable_width)
+        self.slider_k_handle.centery = self.slider_k_rect.centery
+        clamped_approx_k = max(self.min_k, min(self.max_k, self.approximation_k))
+        ratio_approx = (clamped_approx_k - self.min_k) / k_range if k_range > 0 else 0
+        self.slider_approx_handle.left = self.slider_approx_rect.left + int(ratio_approx * usable_width)
+        self.slider_approx_handle.centery = self.slider_approx_rect.centery
 
     def find_point(self, x, y):
         for point in self._points:
@@ -128,88 +48,141 @@ class BSplineInterpolation:
     def add_point(self, x, y):
         self._points.append({'x': x, 'y': y})
         self._points.sort(key=lambda p: p['x'])
+        self.k = max(self.min_k, min(self.k, len(self._points)))
+        self.approximation_k = max(self.min_k, min(self.approximation_k, len(self._points), self.k))
+        self.update_slider_positions()
+
+    def remove_point(self, point):
+        if point in self._points:
+            self._points.remove(point)
+            self.selected_point = None
+            self.k = max(self.min_k, min(self.k, len(self._points)))
+            self.approximation_k = max(self.min_k, min(self.approximation_k, len(self._points), self.k))
+            self.update_slider_positions()
 
     def handle_sliders(self, event):
+        slider_width = self.slider_k_rect.width
+        handle_width = self.slider_k_handle.width
+        usable_width = slider_width - handle_width
+        slider_value_range = self.max_k - self.min_k
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.slider_k_handle.collidepoint(event.pos):
                 self.dragging_k = True
             elif self.slider_approx_handle.collidepoint(event.pos):
                 self.dragging_approx = True
-
         elif event.type == pygame.MOUSEBUTTONUP:
             self.dragging_k = False
             self.dragging_approx = False
-
         elif event.type == pygame.MOUSEMOTION:
-            if self.dragging_k:
-                x = max(self.slider_k_rect.left, min(event.pos[0], self.slider_k_rect.right))
-                self.slider_k_handle.x = x
-                ratio = (x - self.slider_k_rect.left) / self.slider_k_rect.width
-                self.k = max(2, min(10, int(ratio * 9 + 1)))
-
-            if self.dragging_approx:
-                x = max(self.slider_approx_rect.left, min(event.pos[0], self.slider_approx_rect.right))
-                self.slider_approx_handle.x = x
-                ratio = (x - self.slider_approx_rect.left) / self.slider_approx_rect.width
-                self.approximation_k = max(2, min(10, int(ratio * 9 + 1)))
+            if self.dragging_k and slider_value_range > 0 and usable_width > 0:
+                mouse_x_in_track = max(0, min(event.pos[0] - self.slider_k_rect.left, usable_width))
+                ratio = mouse_x_in_track / usable_width
+                raw_k = int(round(ratio * slider_value_range + self.min_k))
+                self.k = max(self.min_k, min(self.max_k, raw_k, len(self._points)))
+                self.approximation_k = min(self.approximation_k, self.k)
+                self.update_slider_positions()
+            if self.dragging_approx and slider_value_range > 0 and usable_width > 0:
+                mouse_x_in_track = max(0, min(event.pos[0] - self.slider_approx_rect.left, usable_width))
+                ratio = mouse_x_in_track / usable_width
+                raw_approx_k = int(round(ratio * slider_value_range + self.min_k))
+                self.approximation_k = max(self.min_k, min(self.max_k, raw_approx_k, len(self._points), self.k))
+                self.update_slider_positions()
 
     def draw(self, screen, font):
         screen.fill((255, 255, 255))
-
+        text_y = 10
+        line_height = font.get_linesize() + 5
         for point in self._points:
-            pygame.draw.circle(screen, (0, 0, 255), (int(point['x']), int(point['y'])), 5)
-
-        curve_points = self.compute_bspline(self._points)
-        for i in range(len(curve_points) - 1):
-            pygame.draw.line(screen, (255, 0, 0),
-                             (int(curve_points[i]['x']), int(curve_points[i]['y'])),
-                             (int(curve_points[i + 1]['x']), int(curve_points[i + 1]['y'])), 2)
-
+            color = (0, 0, 255)
+            if self.selected_point is point:
+                color = (255, 165, 0)
+            pygame.draw.circle(screen, color, (int(point['x']), int(point['y'])), 5)
+        if len(self._points) >= self.k and self.k >= self.min_k:
+            curve_points = self.calculator.compute_bspline(self._points, self.k)
+            if curve_points and len(curve_points) > 1:
+                for i in range(len(curve_points) - 1):
+                    pygame.draw.line(screen, (255, 0, 0),
+                                     (int(curve_points[i]['x']), int(curve_points[i]['y'])),
+                                     (int(curve_points[i + 1]['x']), int(curve_points[i + 1]['y'])), 2)
+            elif not curve_points and len(self._points) >= self.min_k:
+                warning_text = f"Original spline computation failed (k={self.k}, points={len(self._points)})."
+                screen.blit(font.render(warning_text, True, (255, 0, 0)), (10, text_y))
+                text_y += line_height
+        elif len(self._points) < self.k and len(self._points) >= self.min_k:
+            warning_text = f"Need at least {self.k} points for original spline (current: {len(self._points)})."
+            screen.blit(font.render(warning_text, True, (255, 0, 0)), (10, text_y))
+            text_y += line_height
+        elif len(self._points) < self.min_k:
+            warning_text = f"Need at least {self.min_k} points for any spline (current: {len(self._points)})."
+            screen.blit(font.render(warning_text, True, (255, 0, 0)), (10, text_y))
+            text_y += line_height
         if self.show_global_approx:
-            new_ctrl, max_error, rms_error = self.least_squares_approximation()
-            approx_curve = self.compute_bspline(new_ctrl)
-            for i in range(len(approx_curve) - 1):
-                pygame.draw.line(screen, (0, 200, 0),
-                                 (int(approx_curve[i]['x']), int(approx_curve[i]['y'])),
-                                 (int(approx_curve[i + 1]['x']), int(approx_curve[i + 1]['y'])), 2)
-            for point in new_ctrl:
-                pygame.draw.circle(screen, (0, 100, 0), (int(point['x']), int(point['y'])), 5)
-            error_text = f"[LSQ] Max error: {max_error:.2f}, RMS error: {rms_error:.2f}"
-            screen.blit(font.render(error_text, True, (0, 0, 0)), (10, 30))
-
-        # Slider rajzok
+            if len(self._points) >= self.approximation_k and self.approximation_k >= self.min_k:
+                new_ctrl, max_error_lsq, rms_error_lsq = self.approximator.least_squares_approximation(
+                    self._points, self.k, self.approximation_k, num_target_ctrl_points=len(self._points))
+                if new_ctrl:
+                    approx_curve_lsq = self.calculator.compute_bspline(new_ctrl, self.approximation_k)
+                    if approx_curve_lsq and len(approx_curve_lsq) > 1:
+                        for i in range(len(approx_curve_lsq) - 1):
+                            pygame.draw.line(screen, (0, 200, 0),
+                                             (int(approx_curve_lsq[i]['x']), int(approx_curve_lsq[i]['y'])),
+                                             (int(approx_curve_lsq[i + 1]['x']), int(approx_curve_lsq[i + 1]['y'])), 2)
+                        for point in new_ctrl:
+                            pygame.draw.circle(screen, (0, 100, 0), (int(point['x']), int(point['y'])), 5)
+                        error_text_lsq = f"[LSQ] Approx k={self.approximation_k}, Max error: {max_error_lsq:.2f}, RMS error: {rms_error_lsq:.2f}"
+                        screen.blit(font.render(error_text_lsq, True, (0, 0, 0)), (10, text_y))
+                        text_y += line_height
+                    elif not approx_curve_lsq:
+                        warning_text = f"[LSQ] Cannot compute approx curve for drawing (k={self.approximation_k}, ctrl pts={len(new_ctrl)})."
+                        screen.blit(font.render(warning_text, True, (255, 0, 0)), (10, text_y))
+                        text_y += line_height
+                else:
+                    warning_text = "[LSQ] Approximation failed (check console for errors)."
+                    screen.blit(font.render(warning_text, True, (255, 0, 0)), (10, text_y))
+                    text_y += line_height
+            elif len(self._points) < self.approximation_k and len(self._points) >= self.min_k:
+                warning_text = f"[LSQ] Need at least {self.approximation_k} points for approx order {self.approximation_k} (current: {len(self._points)})."
+                screen.blit(font.render(warning_text, True, (255, 0, 0)), (10, text_y))
+                text_y += line_height
+        if self.show_lower_order:
+            if len(self._points) >= self.approximation_k and self.approximation_k >= self.min_k:
+                approx_points_lo, max_error_lo, rms_error_lo, errors_list_lo = self.approximator.compute_approximation_by_order(
+                    self._points, self.k, self.approximation_k)
+                if approx_points_lo and len(approx_points_lo) > 1:
+                    max_e = max(errors_list_lo) if errors_list_lo else 1.0
+                    if max_e == 0: max_e = 1.0
+                    norm_errors = [e / max_e for e in errors_list_lo]
+                    def get_color(value):
+                        clamped_value = max(0.0, min(1.0, value))
+                        r = int(255 * clamped_value)
+                        g = int(255 * (1 - clamped_value))
+                        b = 0
+                        return (r, g, b)
+                    for i in range(len(approx_points_lo) - 1):
+                        color = get_color(norm_errors[i])
+                        pygame.draw.line(screen, color,
+                                         (int(approx_points_lo[i]['x']), int(approx_points_lo[i]['y'])),
+                                         (int(approx_points_lo[i + 1]['x']), int(approx_points_lo[i + 1]['y'])), 4)
+                    error_text_lo = f"[Orig Pts] Approx k={self.approximation_k}, Max error: {max_error_lo:.2f}, RMS error: {rms_error_lo:.2f}"
+                    screen.blit(font.render(error_text_lo, True, (0, 0, 0)), (10, text_y))
+                    text_y += line_height
+                elif not approx_points_lo:
+                    warning_text = f"[Orig Pts] Cannot compute approx curve (k={self.approximation_k}, points={len(self._points)})."
+                    screen.blit(font.render(warning_text, True, (255, 0, 0)), (10, text_y))
+                    text_y += line_height
+            elif len(self._points) < self.approximation_k and len(self._points) >= self.min_k:
+                warning_text = f"[Orig Pts] Need at least {self.approximation_k} points for approx order {self.approximation_k} (current: {len(self._points)})."
+                screen.blit(font.render(warning_text, True, (255, 0, 0)), (10, text_y))
+                text_y += line_height
         pygame.draw.rect(screen, (180, 180, 180), self.slider_k_rect)
         pygame.draw.rect(screen, (50, 50, 200), self.slider_k_handle)
-        screen.blit(font.render(f"k = {self.k}", True, (0, 0, 0)), (self.slider_k_rect.left, self.slider_k_rect.top - 20))
-
+        k_label = f"Original k = {self.k}"
+        screen.blit(font.render(k_label, True, (0, 0, 0)), (self.slider_k_rect.left, self.slider_k_rect.top - 20))
         pygame.draw.rect(screen, (180, 180, 180), self.slider_approx_rect)
         pygame.draw.rect(screen, (200, 100, 50), self.slider_approx_handle)
-        screen.blit(font.render(f"approx_k = {self.approximation_k}", True, (0, 0, 0)),
-                    (self.slider_approx_rect.left, self.slider_approx_rect.top - 20))
-
-        if self.show_lower_order:
-            approx_points, max_error, rms_error = self.compute_lower_order_approximation()
-            if approx_points:
-                original_curve = self.compute_bspline(self._points)
-
-                errors = [((p1['x'] - p2['x']) ** 2 + (p1['y'] - p2['y']) ** 2) ** 0.5
-                          for p1, p2 in zip(original_curve, approx_points)]
-
-                max_e = max(errors) if max(errors) != 0 else 1
-                norm_errors = [e / max_e for e in errors]
-
-                def get_color(value):
-                    r = int(255 * value)
-                    g = 0
-                    b = int(255 * (1 - value))
-                    return (r, g, b)
-
-                for i in range(len(approx_points) - 1):
-                    color = get_color(norm_errors[i])
-                    pygame.draw.line(screen, color,
-                                     (int(approx_points[i]['x']), int(approx_points[i]['y'])),
-                                     (int(approx_points[i + 1]['x']), int(approx_points[i + 1]['y'])), 4)
-
-                error_text = f"Max error: {max_error:.2f}, RMS error: {rms_error:.2f}"
-                text_surface = font.render(error_text, True, (0, 0, 0))
-                screen.blit(text_surface, (10, 10))
+        approx_k_label = f"Approx k = {self.approximation_k}"
+        screen.blit(font.render(approx_k_label, True, (0, 0, 0)),
+                     (self.slider_approx_rect.left, self.slider_approx_rect.top - 20))
+        instructions = "Left Click: Select/Drag Pt | Right Click: Add Pt | Del/Backspace: Remove Selected Pt | G: Toggle LSQ Approx | A: Toggle Orig Pts Approx"
+        screen.blit(font.render(instructions, True, (0, 0, 0)), (10, text_y))
+        pygame.display.flip()
